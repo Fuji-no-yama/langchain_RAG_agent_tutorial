@@ -24,7 +24,7 @@ from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 
 load_dotenv(override=True) #.envファイルの中身を環境変数に設定
-langchain.debug = True
+langchain.debug = True #コマンドライン上でLLMとのやり取りを可視化できる。必要なければFalseに
 
 def remove_ruby(filepath): #指定したテキストファイルの余計な部分を正規表現で除去しエンコードをshiftjis->utf8へ変更する関数(青空文庫ファイル専用)
     with open(filepath, 'r', encoding='shift_jis') as input_file:
