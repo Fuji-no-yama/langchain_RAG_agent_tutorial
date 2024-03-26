@@ -1,7 +1,6 @@
 import os
 import streamlit as st
 from dotenv import load_dotenv
-from operator import itemgetter
 import re
 import pandas as pd
 import zipfile
@@ -15,7 +14,6 @@ from langchain.prompts import (
     HumanMessagePromptTemplate,
 )
 from langchain_openai.chat_models import ChatOpenAI
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.callbacks import StreamlitCallbackHandler
 from langchain.agents import load_tools, AgentExecutor, create_openai_tools_agent
@@ -72,9 +70,9 @@ def setuup_vectorDB(filename): #ファイル名を指定してその青空文庫
     print("作成が完了しました")
 
 def init_RAG_tool(filename): #与えられたファイルに関するRAGツールを作成する関数
-    #ツール説明作成用のchain
+    #ツール概要作成用のchain
     if st.session_state.RAG_sourcefiles[filename] == "": #概要が登録されていなければchainで作成し登録
-        prompt = ChatPromptTemplate.from_template("以下の文章を読んで簡単なタイトルをつけて。\n #文章:\n{sentence}")
+        prompt = ChatPromptTemplate.from_template("以下の文章を読んで簡単なタイトルをつけてください。\n #文章:\n{sentence}")
         model = ChatOpenAI(
             model = os.environ["OPENAI_API_MODEL"],
             temperature = float(os.environ["OPENAI_API_TEMPERATURE"])
@@ -92,7 +90,7 @@ def init_RAG_tool(filename): #与えられたファイルに関するRAGツー�
     tool = create_retriever_tool(
         vectorstore.as_retriever(search_kwargs={"k": 3}),
         "search_about_"+(filename.rsplit('.', 1)[0]),
-        f"{description}について検索して, 関連性が高い文書の一部を返します。",
+        f"「{description}」について検索して, 関連性が高い文書の一部を返します。",
     )
     return tool
 
@@ -123,12 +121,12 @@ def create_agent_chain(): #エージェントを作る関数
 
 
 
-#ここから下がstreamlit起動時に動作する部分
+#以下がstreamlit起動時に動作する部分
 
 st.title("RAG and Agent streamlit-app")
 
 if "RAG_sourcefiles" not in st.session_state: #RAGの参照ファイルとその概要(RAGtool作成に必要)の辞書型オブジェクト(docの中身で初期化)
-    files = [f for f in os.listdir("/workspace/doc") if not f.startswith(".")] #隠しファイルを除く
+    files = [f for f in os.listdir("/workspace/doc") if not f.startswith(".")] #隠しファイルを除くファイル一覧を取得
     st.session_state.RAG_sourcefiles = {file : "" for file in files}
 
 uploaded_file = st.file_uploader("青空文庫のZIPファイルを選択してください", type=['zip'])
