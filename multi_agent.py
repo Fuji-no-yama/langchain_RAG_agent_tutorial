@@ -15,8 +15,7 @@ from langchain.prompts import (
 )
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.callbacks import StreamlitCallbackHandler
-from langchain.agents import load_tools, AgentExecutor, create_openai_tools_agent
+from langchain.agents import load_tools, AgentExecutor, create_openai_tools_agent, create_openai_functions_agent
 from langchain.tools.retriever import create_retriever_tool
 from langchain_community.vectorstores import FAISS 
 from langchain_community.document_loaders import TextLoader
@@ -72,7 +71,7 @@ def setuup_vectorDB(filename): #ファイル名を指定してその青空文庫
 def init_RAG_tool(filename): #与えられたファイルに関するRAGツールを作成する関数
     #ツール概要作成用のchain
     if st.session_state.RAG_sourcefiles[filename] == "": #概要が登録されていなければchainで作成し登録
-        prompt = ChatPromptTemplate.from_template("以下の文章を読んで簡単なタイトルをつけてください。\n #文章:\n{sentence}")
+        prompt = ChatPromptTemplate.from_template("以下の文章を読んでタイトルをつけてください。\n #文章:\n{sentence}")
         model = ChatOpenAI(
             model = os.environ["OPENAI_API_MODEL"],
             temperature = float(os.environ["OPENAI_API_TEMPERATURE"])
@@ -90,20 +89,18 @@ def init_RAG_tool(filename): #与えられたファイルに関するRAGツー�
     tool = create_retriever_tool(
         vectorstore.as_retriever(search_kwargs={"k": 3}),
         "search_about_"+(filename.rsplit('.', 1)[0]),
-        f"「{description}」について検索して, 関連性が高い文書の一部を返します。",
+        f"{description}について検索して, 関連性が高い文書の一部を返します。",
     )
     return tool
 
 def create_agent_chain(): #エージェントを作る関数
-    callback = [StreamlitCallbackHandler(st.container())]
     chat = ChatOpenAI(
         model = os.environ["OPENAI_API_MODEL"],
         temperature = float(os.environ["OPENAI_API_TEMPERATURE"]),
-        streaming = True,
-        callbacks = callback
+        streaming = True
     )
 
-    tools = load_tools(tool_names=["ddg-search", "wikipedia"], callbacks=callback) #ツールを初期化し作成
+    tools = load_tools(tool_names=["ddg-search"]) #ツールを初期化し作成
     tools = tools + [init_RAG_tool(x) for x in list(st.session_state.RAG_sourcefiles.keys())]
 
     system_prompt = ChatPromptTemplate(
@@ -116,8 +113,8 @@ def create_agent_chain(): #エージェントを作る関数
             MessagesPlaceholder(variable_name = "agent_scratchpad"),
         ]
     )
-    agent = create_openai_tools_agent(llm=chat, tools=tools, prompt=system_prompt)
-    return AgentExecutor(agent=agent, tools=tools, verbose=True, callbacks=callback, memory=st.session_state.chain_memory)
+    agent = create_openai_functions_agent(llm=chat, tools=tools, prompt=system_prompt)
+    return AgentExecutor(agent=agent, tools=tools, verbose=True, return_intermediate_steps=True)
 
 
 
@@ -140,7 +137,7 @@ if uploaded_file is not None: #アップロードされたファイルがある�
     st.session_state.agent = create_agent_chain() #ファイルが追加された場合agentも作成し直す
 
 df = pd.DataFrame({ #使用可能ツールのテーブル表示
-    '使用可能agentツール': ["wikipedia(web検索)","duck duck go(web検索)"]+list(st.session_state.RAG_sourcefiles.keys()),
+    '使用可能agentツール': ["duck duck go(web検索)"]+list(st.session_state.RAG_sourcefiles.keys()),
 })
 st.table(df)
 
@@ -150,8 +147,8 @@ with st.spinner("Vector DBの作成中..."):
         if not os.path.isdir("/workspace/DBs/vector_"+(filename.rsplit('.', 1)[0])): #存在しなかった場合作成
             setuup_vectorDB(filename)
 
-if "conversation_memory" not in st.session_state: #会話履歴表示用memoryを初期化
-    st.session_state.conversation_memory = ConversationBufferMemory(return_messages=True)
+if "conversation_memory" not in st.session_state: #会話履歴を初期化
+    st.session_state.conversation_memory = []
 
 if "chain_memory" not in st.session_state: #chain用memoryを初期化(上限2個まで)
     st.session_state.chain_memory = ConversationBufferWindowMemory(k=2 ,memory_key="history", return_messages=True)
@@ -160,13 +157,13 @@ if "agent" not in st.session_state: #agentの初期化
     st.session_state.agent = create_agent_chain()
 
 
-for message in st.session_state.conversation_memory.load_memory_variables({})["history"]: #メッセージ履歴の表示
-    if(message.type=="ai"):
+for message in st.session_state.conversation_memory: #メッセージ履歴の表示
+    if(message[0]=="ai"):
         with st.chat_message("assistant"):
-            st.markdown(message.content)
+            st.markdown(message[1])
     else:
         with st.chat_message("user"):
-            st.markdown(message.content)
+            st.markdown(message[1])
 
 prompt = st.chat_input("質問はありますか?") #chat入力欄の表示
 
@@ -175,8 +172,20 @@ if prompt:
         st.markdown(prompt)
     
     with st.chat_message("assistant"): #応答の生成と表示
-        agent_result = st.session_state.agent.invoke({"question":prompt})
-        responce = agent_result["output"]
-        st.markdown(responce)
-    st.session_state.conversation_memory.save_context({"input":prompt}, {"output":responce}) #会話履歴表示用memoryへの追加
+        agent_result = st.session_state.agent.invoke({"question":prompt, "history":st.session_state.chain_memory.load_memory_variables({})["history"]})
+        response = agent_result["output"]
+        im_steps = agent_result["intermediate_steps"] #中間出力の取得
+        st.markdown(response)
+        if len(im_steps)!=0: #ツールを使用していた場合
+            tool = "「"+im_steps[0][0].tool+"」"
+            query =  "「"+im_steps[0][0].tool_input["query"]+"」"
+            reff = "参照ツール:"+tool+"参照クエリ:"+query
+        else: #ツールを使用していなかった場合
+            reff = "参照ツール:なし"
+    with st.chat_message("assistant"):
+        st.markdown(reff)
+    st.session_state.conversation_memory.append(("user",prompt)) #会話履歴表示用memoryへの追加
+    st.session_state.conversation_memory.append(("ai",response)) 
+    st.session_state.conversation_memory.append(("ai",reff)) 
+    st.session_state.chain_memory.save_context({"input":prompt}, {"output":response}) #agent用memoryへの追加
     
