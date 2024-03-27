@@ -121,6 +121,7 @@ def create_agent_chain(): #エージェントを作る関数
 #以下がstreamlit起動時に動作する部分
 
 st.title("RAG and Agent streamlit-app")
+return_source = st.toggle("Return Source Document") #参照元文書を返すかどうかを表す
 
 if "RAG_sourcefiles" not in st.session_state: #RAGの参照ファイルとその概要(RAGtool作成に必要)の辞書型オブジェクト(docの中身で初期化)
     files = [f for f in os.listdir("/workspace/doc") if not f.startswith(".")] #隠しファイルを除くファイル一覧を取得
@@ -180,6 +181,9 @@ if prompt:
             tool = "「"+im_steps[0][0].tool+"」"
             query =  "「"+im_steps[0][0].tool_input["query"]+"」"
             reff = "参照ツール:"+tool+"参照クエリ:"+query
+            if return_source:
+                document =  "「"+im_steps[0][1]+"」"
+                reff = reff + "  \n参照文書:"+document
         else: #ツールを使用していなかった場合
             reff = "参照ツール:なし"
     with st.chat_message("assistant"):
