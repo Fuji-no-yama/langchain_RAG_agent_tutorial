@@ -5,7 +5,7 @@ langchainのagentを用いて[青空文庫](https://www.aozora.gr.jp/index.html)
 
 ## 実行方法
 - .devcontainer内に必要な環境が記されているため, dockerコンテナを作成
-- .envファイルに必要な情報を記入(openaiのapiキー, モデル名, モデルtemperature)
+- .envファイルを作成し, 必要な情報を記入(openaiのapiキー, モデル名, モデルtemperature)
 - `streamlit run multi_agent.py` にて実行
 - ローカルホストで起動するので[ここにアクセス](http://localhost:8501/)
 - この状態ではデフォルトで読み込んであるニュートンの伝記についてのRAGとweb検索2種のツールが使用可能(「大谷翔平の通訳は誰?」などの質問も回答可能)
