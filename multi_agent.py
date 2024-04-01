@@ -71,7 +71,7 @@ def setuup_vectorDB(filename): #ファイル名を指定してその青空文庫
 def init_RAG_tool(filename): #与えられたファイルに関するRAGツールを作成する関数
     #ツール概要作成用のchain
     if st.session_state.RAG_sourcefiles[filename] == "": #概要が登録されていなければchainで作成し登録
-        prompt = ChatPromptTemplate.from_template("以下の文章を読んでタイトルをつけてください。\n #文章:\n{sentence}")
+        prompt = ChatPromptTemplate.from_template("以下の文章を読んでメインタイトルをつけて, 4個程度のキーワードを挙げてください。\n #文章:\n{sentence}")
         model = ChatOpenAI(
             model = os.environ["OPENAI_API_MODEL"],
             temperature = float(os.environ["OPENAI_API_TEMPERATURE"])
@@ -89,7 +89,7 @@ def init_RAG_tool(filename): #与えられたファイルに関するRAGツー�
     tool = create_retriever_tool(
         vectorstore.as_retriever(search_kwargs={"k": 3}),
         "search_about_"+(filename.rsplit('.', 1)[0]),
-        f"{description}について検索して, 関連性が高い文書の一部を返します。",
+        f"{description}についての文書を検索して, 関連性が高い一部を返します。",
     )
     return tool
 
